@@ -280,3 +280,175 @@ Strategy模式提供了用条件判断语句以外的另一种选择，消除条
 
 
 ## 观察者模式
+
+为某些对象建立一种“通知依赖关系”   —— 一个对象（目标对象）的状态发生改变，所有的依赖对象（观察者对象）都将得到通知
+
+```C++ 
+class MainForm : public Form
+{
+	TextBox* txtFilePath;
+	TextBox* txtFileNumber;
+	ProgressBar* progressBar;   //添加一个进度条
+
+public:
+	void Button1_Click(){
+
+		string filePath = txtFilePath->getText();
+		int number = atoi(txtFileNumber->getText().c_str());
+	
+		FileSplitter splitter(filePath, number, progressBar);
+	
+		splitter.split();  //文件划分
+	
+	}
+
+};
+```
+
+```C++ 
+class FileSplitter
+{
+	string m_filePath;
+	int m_fileNumber;
+	ProgressBar* m_progressBar;
+
+public:
+	FileSplitter(const string& filePath, int fileNumber, ProgressBar* progressBar) :
+		m_filePath(filePath), 
+		m_fileNumber(fileNumber),
+		m_progressBar(progressBar){
+
+	}
+	
+	void split(){
+	
+		//1.读取大文件
+	
+		//2.分批次向小文件中写入
+		for (int i = 0; i < m_fileNumber; i++){
+			//...
+			float progressValue = m_fileNumber;
+			progressValue = (i + 1) / progressValue;
+			m_progressBar->setValue(progressValue);
+		}
+	
+	}
+
+};
+```
+
+具体依赖于抽象的实现
+
+```C++ 
+class MainForm : public Form, public IProgress
+{
+	TextBox* txtFilePath;
+	TextBox* txtFileNumber;
+
+	ProgressBar* progressBar;
+
+public:
+	void Button1_Click(){
+
+		string filePath = txtFilePath->getText();
+		int number = atoi(txtFileNumber->getText().c_str());
+	
+		ConsoleNotifier cn;
+	
+		FileSplitter splitter(filePath, number);
+	
+		splitter.addIProgress(this); //订阅通知    添加观察者
+		splitter.addIProgress(&cn)； //订阅通知
+	
+		splitter.split();
+	
+		splitter.removeIProgress(this);  //删除观察者
+	
+	}
+	
+	virtual void DoProgress(float value){
+		progressBar->setValue(value);
+	}
+
+};
+
+//用打点的方式实现进度条       也可以换成别的方式单纯显示数字等方式通过观察者实现        目标对象改变
+class ConsoleNotifier : public IProgress {
+public:
+	virtual void DoProgress(float value){
+		cout << ".";
+	}
+};
+```
+
+```C++
+//定义接口
+class IProgress{
+public:
+	virtual void DoProgress(float value)=0;
+	virtual ~IProgress(){}
+};
+
+
+class FileSplitter
+{
+	string m_filePath;
+	int m_fileNumber;
+
+	List<IProgress*>  m_iprogressList; // 抽象通知机制，支持多个观察者
+
+public:
+	FileSplitter(const string& filePath, int fileNumber) :
+		m_filePath(filePath), 
+		m_fileNumber(fileNumber){
+
+	}
+
+
+	void split(){
+	
+		//1.读取大文件
+	
+		//2.分批次向小文件中写入
+		for (int i = 0; i < m_fileNumber; i++){
+			//...
+	
+			float progressValue = m_fileNumber;
+			progressValue = (i + 1) / progressValue;
+			onProgress(progressValue);//发送通知   并不知道谁是通知者  针对整个通知机制抽象通知
+		}
+	
+	}
+
+//*************************************不会改变**********************************//
+	void addIProgress(IProgress* iprogress){
+		m_iprogressList.push_back(iprogress);
+	}
+	
+	void removeIProgress(IProgress* iprogress){
+		m_iprogressList.remove(iprogress);
+	}
+
+
+protected:
+	virtual void onProgress(float value){
+		
+
+		List<IProgress*>::iterator itor=m_iprogressList.begin();
+	
+		while (itor != m_iprogressList.end() )
+			(*itor)->DoProgress(value); //更新进度条
+			itor++;
+		}
+	}
+
+};
+//*************************************不会改变**********************************//
+
+```
+
+Observer模式使得我们可以**独立地**改变目标与观察者
+
+目标发送通知时，无需指定观察者，通知（可以携带通知信息作为参数）会自动传播
+
+观察者自己决定是否需要订阅通知
